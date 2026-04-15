@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLUU Streaming — KPI Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#EEF2F7;color:#1a202c;display:flex;height:100vh;overflow:hidden;font-size:13px}
+
+/* ── Sidebar ── */
+#sidebar{width:232px;background:#0B2545;color:#fff;flex-shrink:0;display:flex;flex-direction:column;overflow-y:auto;transition:width .2s}
+.sidebar-header{padding:20px 18px 14px;border-bottom:1px solid rgba(255,255,255,.1)}
+.sidebar-header .brand{font-size:19px;font-weight:800;color:#00C2E0;letter-spacing:.5px}
+.sidebar-header .sub{font-size:10px;color:rgba(255,255,255,.45);margin-top:2px}
+.nav-label{font-size:10px;font-weight:700;color:rgba(255,255,255,.35);padding:14px 18px 4px;text-transform:uppercase;letter-spacing:.9px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 18px;cursor:pointer;font-size:12.5px;color:rgba(255,255,255,.7);transition:all .15s;border-left:3px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.07);color:#fff}
+.nav-item.active{background:rgba(0,194,224,.12);color:#00C2E0;border-left-color:#00C2E0;font-weight:600}
+.nav-icon{font-size:15px;width:18px;text-align:center}
+.nav-footer{margin-top:auto;padding:14px 18px;border-top:1px solid rgba(255,255,255,.1);font-size:10px;color:rgba(255,255,255,.3)}
+
+/* ── Main ── */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:#fff;padding:13px 26px;border-bottom:1px solid #dde3ec;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar h2{font-size:16px;font-weight:700;color:#0B2545}
+.topbar .meta{font-size:11px;color:#8a97aa;background:#F0F4F8;padding:4px 10px;border-radius:20px}
+.content{flex:1;overflow-y:auto;padding:22px 26px}
+
+/* ── Views ── */
+.view{display:none}.view.active{display:block}
+
+/* ── KPI Cards ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+.kpi-card{background:#fff;border-radius:10px;padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-top:3px solid #00C2E0}
+.kpi-card .kc-label{font-size:11px;color:#8a97aa;font-weight:500;margin-bottom:7px;line-height:1.3}
+.kpi-card .kc-value{font-size:24px;font-weight:800;color:#0B2545;line-height:1}
+.kpi-card .kc-delta{font-size:11.5px;margin-top:5px;font-weight:600}
+.kpi-card .kc-prev{font-size:10.5px;color:#aab4c0;margin-top:2px}
+.delta-up{color:#16A34A}.delta-down{color:#DC2626}.delta-neutral{color:#94a3b8}
+
+/* ── Cards / Sections ── */
+.card{background:#fff;border-radius:10px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:18px}
+.section-h{font-size:13px;font-weight:700;color:#0B2545;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #edf0f5;display:flex;align-items:center;gap:8px}
+.section-h span.tag{font-size:10px;font-weight:500;color:#8a97aa;background:#F0F4F8;padding:2px 8px;border-radius:10px;margin-left:auto}
+
+/* ── Tables ── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{background:#0B2545;color:#fff;padding:9px 11px;text-align:left;font-weight:500;font-size:11.5px;white-space:nowrap}
+th:first-child{border-radius:0}
+td{padding:8px 11px;border-bottom:1px solid #edf0f5;white-space:nowrap;color:#2d3748}
+tr:nth-child(even) td{background:#F7FAFC}
+tr:last-child td{border-bottom:none}
+tr.total-row td{font-weight:700;background:#EBF4FF !important;color:#1e3a8a}
+tr.section-row td{background:#F0F4F8 !important;font-weight:600;color:#4a5568;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+td.num{text-align:right}
+th.num{text-align:right}
+
+/* ── Badges ── */
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600}
+.b-green{background:#D1FAE5;color:#065F46}
+.b-blue{background:#DBEAFE;color:#1E40AF}
+.b-yellow{background:#FEF3C7;color:#92400E}
+.b-red{background:#FEE2E2;color:#991B1B}
+.b-teal{background:#CCFBF1;color:#0F766E}
+.b-purple{background:#EDE9FE;color:#6B21A8}
+.b-gray{background:#F1F5F9;color:#475569}
+
+/* ── Grid Layouts ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+
+/* ── Stat Mini ── */
+.stat-mini{background:#EBF4FF;border-radius:8px;padding:12px 14px}
+.stat-mini .sm-l{font-size:10.5px;color:#4a5568;margin-bottom:3px}
+.stat-mini .sm-v{font-size:18px;font-weight:800;color:#0B2545}
+.stat-mini .sm-s{font-size:10px;color:#718096;margin-top:1px}
+
+/* ── Assumption Box ── */
+.assump{background:#FFFBEB;border:1px solid #FCD34D;border-radius:8px;padding:12px 14px}
+.assump .a-l{font-size:10.5px;color:#92400E;font-weight:600;margin-bottom:3px}
+.assump .a-v{font-size:18px;font-weight:800;color:#78350F}
+
+/* ── Progress ── */
+.pbar{background:#E2E8F0;border-radius:4px;height:5px;overflow:hidden;margin-top:4px}
+.pfill{height:100%;border-radius:4px;background:#00C2E0}
+
+/* ── Chart wrapper ── */
+.chart-box{position:relative;height:260px}
+.chart-box-sm{position:relative;height:200px}
+.chart-box-lg{position:relative;height:300px}
+
+/* ── NPS Score ── */
+.nps-val{font-weight:700;font-size:14px}
+.nps-ex{color:#0D9488}.nps-good{color:#3B82F6}.nps-ok{color:#F59E0B}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#CBD5E0;border-radius:3px}
+
+/* ── Responsive ── */
+@media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.g2{grid-template-columns:1fr}.g3{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ SIDEBAR ══════════════ -->
+<nav id="sidebar">
+  <div class="sidebar-header">
+    <div class="brand">BLUU</div>
+    <div class="sub">KPI Dashboard &bull; Apr 2026</div>
+  </div>
+
+  <div class="nav-label">Overview</div>
+  <div class="nav-item active" onclick="nav('exec')">
+    <span class="nav-icon">📊</span> Executive Dashboard
+  </div>
+
+  <div class="nav-label">Operations</div>
+  <div class="nav-item" onclick="nav('prodops')">
+    <span class="nav-icon">⚙️</span> Product &amp; Ops KPIs
+  </div>
+  <div class="nav-item" onclick="nav('commercial')">
+    <span class="nav-icon">💼</span> Commercial KPIs
+  </div>
+
+  <div class="nav-label">Customers</div>
+  <div class="nav-item" onclick="nav('users')">
+    <span class="nav-icon">👥</span> User Metrics
+  </div>
+  <div class="nav-item" onclick="nav('care')">
+    <span class="nav-icon">💬</span> Customer Care
+  </div>
+
+  <div class="nav-label">Marketing</div>
+  <div class="nav-item" onclick="nav('comms')">
+    <span class="nav-icon">📧</span> Communications
+  </div>
+  <div class="nav-item" onclick="nav('content')">
+    <span class="nav-icon">📺</span> Content &amp; Viewership
+  </div>
+
+  <div class="nav-label">Finance &amp; Product</div>
+  <div class="nav-item" onclick="nav('revenue')">
+    <span class="nav-icon">💰</span> Revenue Forecast
+  </div>
+  <div class="nav-item" onclick="nav('cpebox')">
+    <span class="nav-icon">📦</span> Entertainment Box
+  </div>
+  <div class="nav-item" onclick="nav('web')">
+    <span class="nav-icon">🌐</span> Website Analytics
+  </div>
+
+  <div class="nav-footer">Reporting: Nov 2025 – Apr 2026<br>Last updated: Apr 15, 2026</div>
+</nav>
+
+<!-- ══════════════ MAIN ══════════════ -->
+<div id="main">
+  <div class="topbar">
+    <h2 id="page-title">Executive Dashboard</h2>
+    <span class="meta" id="page-meta">Reporting Period: Nov 1, 2025 – Apr 15, 2026 &nbsp;|&nbsp; Last Updated: Apr 15, 2026</span>
+  </div>
+  <div class="content">
+
+    <!-- ════════ EXECUTIVE DASHBOARD ════════ -->
+    <div class="view active" id="v-exec">
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kc-label">Monthly Active Users</div>
+          <div class="kc-value">1,705</div>
+          <div class="kc-delta delta-up">▲ 11.8% MoM</div>
+          <div class="kc-prev">Prev: 1,525</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kc-label">Activation Success Rate</div>
+          <div class="kc-value">92.1%</div>
+          <div class="kc-delta delta-up">▲ 0.77pp MoM</div>
+          <div class="kc-prev">Prev: 91.4% &nbsp;|&nbsp; Target: 90.0%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kc-label">Avg Minute Audience (hrs)</div>
+          <div class="kc-value">1,260</div>
+          <div class="kc-delta delta-down">▼ 42.3% MoM (MTD)</div>
+          <div class="kc-prev">Prev full month: 2,185</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kc-label">App Rating (avg)</div>
+          <div class="kc-value">3.58</div>
+          <div class="kc-delta delta-up">▲ +0.09 MoM</div>
+          <div class="kc-prev">Prev: 3.49 &nbsp;|&nbsp; Target: 4.0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kc-label">Total RGUs</div>
+          <div class="kc-value">2,185</div>
+          <div class="kc-delta delta-up">▲ 13.8% MoM</div>
+          <div class="kc-prev">Prev: 1,920 &nbsp;|&nbsp; Target: 2,500</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kc-label">CPE-Less Gross Adds</div>
+          <div class="kc-value">312</div>
+          <div class="kc-delta delta-down">▼ 51.9% MoM (MTD)</div>
+          <div class="kc-prev">Prev full month: 648 &nbsp;|&nbsp; Target: 600</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kc-label">Mo'Love Attach Rate</div>
+          <div class="kc-value">29.8%</div>
+          <div class="kc-delta delta-up">▲ +1.3pp MoM</div>
+          <div class="kc-prev">Prev: 28.5% &nbsp;|&nbsp; Target: 30.0%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kc-label">ARPU (US$)</div>
+          <div class="kc-value">$5.72</div>
+          <div class="kc-delta delta-up">▲ 0.7% MoM</div>
+          <div class="kc-prev">Prev: $5.68 &nbsp;|&nbsp; Target: $6.00</div>
+        </div>
+      </div>
+
+      <div class="g2">
+        <div class="card">
+          <div class="section-h">Customer Care — NPS by Market <span class="tag">Apr-26 MTD</span></div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Market</th><th class="num">NPS Streaming</th><th class="num">NPS TV</th><th class="num">Overall NPS</th><th class="num">CSAT</th><th class="num">Sample</th><th>Sentiment</th>
+              </tr></thead>
+              <tbody id="exec-nps-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-h">MAU Trend <span class="tag">Nov 25 – Apr 26 MTD</span></div>
+          <div class="chart-box"><canvas id="exec-mau-chart"></canvas></div>
+        </div>
+      </div>
+    </div><!-- /exec -->
+
+    <!-- ════════ PRODUCT & OPS ════════ -->
+    <div class="view" id="v-prodops">
+      <div class="card">
+        <div class="section-h">Product &amp; Operations KPIs — Monthly Performance</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>KPI</th>
+              <th class="num">Nov-25</th><th class="num">Dec-25</th><th class="num">Jan-26</th><th class="num">Feb-26</th><th class="num">Mar-26</th><th class="num">Apr-26 MTD</th>
+              <th class="num">MoM Δ</th><th class="num">Target</th><th>Status</th>
+            </tr></thead>
+            <tbody id="prodops-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-h">KPI Trends — Growth Metrics <span class="tag">MAU · Activations · App Rating</span></div>
+        <div class="chart-box-lg"><canvas id="prodops-chart"></canvas></div>
+      </div>
+      <div class="card" style="background:#F7FAFC;border:1px solid #E2E8F0">
+        <div class="section-h" style="font-size:12px;color:#4a5568">Notes</div>
+        <ul style="font-size:12px;color:#4a5568;line-height:2;padding-left:16px">
+          <li>Activation Success Rate = successful first-time sign-ins ÷ activation attempts.</li>
+          <li>Watch Time = Average Minute Audience measured in hours across all platforms.</li>
+          <li>App Crashes normalized per 1,000 viewing sessions (iOS + Android + CTV).</li>
+          <li>Marketing Conversions include email, paid, referral and organic-attributed sign-ups.</li>
+          <li>App Rating is the weighted average across Google Play &amp; iOS App Store.</li>
+          <li>April figures are month-to-date through Apr 15, 2026.</li>
+        </ul>
+      </div>
+    </div><!-- /prodops -->
+
+    <!-- ════════ COMMERCIAL KPIs ════════ -->
+    <div class="view" id="v-commercial">
+      <div class="card">
+        <div class="section-h">Commercial KPIs — Monthly Performance</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>KPI</th>
+              <th class="num">Nov-25</th><th class="num">Dec-25</th><th class="num">Jan-26</th><th class="num">Feb-26</th><th class="num">Mar-26</th><th class="num">Apr-26 MTD</th>
+              <th class="num">MoM Δ</th><th class="num">Target</th>
+            </tr></thead>
+            <tbody id="commercial-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="section-h">RGU &amp; CapEx Avoided Growth</div>
+          <div class="chart-box"><canvas id="comm-rgu-chart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="section-h">CPE-Less Swap Summary (YTD)</div>
+          <div class="tbl-wrap" style="margin-bottom:16px">
+            <table>
+              <thead><tr>
+                <th>Source</th><th class="num">Swapped</th><th class="num">% of Adds</th><th class="num">Avg CapEx Saved (US$)</th>
+              </tr></thead>
+              <tbody>
+                <tr><td>AVS</td><td class="num">393</td><td class="num">16.2%</td><td class="num">$120</td></tr>
+                <tr><td>HubTV</td><td class="num">221</td><td class="num">9.1%</td><td class="num">$240</td></tr>
+                <tr><td>Other</td><td class="num">14</td><td class="num">0.6%</td><td class="num">$85</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="chart-box-sm"><canvas id="comm-swap-chart"></canvas></div>
+        </div>
+      </div>
+    </div><!-- /commercial -->
+
+    <!-- ════════ USER METRICS ════════ -->
+    <div class="view" id="v-users">
+      <div class="g2">
+        <div class="card">
+          <div class="section-h">Monthly Active Users / Sign-ins by Market</div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Market</th>
+                <th class="num">Nov-25</th><th class="num">Dec-25</th><th class="num">Jan-26</th><th class="num">Feb-26</th><th class="num">Mar-26</th><th class="num">Apr MTD</th>
+                <th class="num">YTD</th><th class="num">% Share</th>
+              </tr></thead>
+              <tbody id="user-market-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-h">MAU by Market (Apr-26 MTD)</div>
+          <div class="chart-box"><canvas id="user-mkt-chart"></canvas></div>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="section-h">Downloads by Platform</div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Platform</th>
+                <th class="num">Nov-25</th><th class="num">Dec-25</th><th class="num">Jan-26</th><th class="num">Feb-26</th><th class="num">Mar-26</th><th class="num">Apr MTD</th>
+                <th class="num">YTD</th>
+              </tr></thead>
+              <tbody id="user-platform-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-h">Downloads Share by Platform (YTD)</div>
+          <div class="chart-box"><canvas id="user-plat-chart"></canvas></div>
+        </div>
+      </div>
+    </div><!-- /users -->
+
+    <!-- ════════ CUSTOMER CARE ════════ -->
+    <div class="view" id="v-care">
+      <div class="card">
+        <div class="section-h">NPS &amp; CSAT by Market <span class="tag">Apr-26 MTD</span></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>Market</th>
+              <th class="num">NPS — Streaming</th><th class="num">NPS — TV</th><th class="num">Overall NPS</th>
+              <th class="num">CSAT</th><th class="num">Sample Size</th><th class="num">MoM Δ</th><th>Sentiment</th>
+            </tr></thead>
+            <tbody id="care-nps-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="section-h">Overall NPS Trend — Top Markets</div>
+          <div class="chart-box"><canvas id="care-nps-chart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="section-h">Contact Center Volume (informational)</div>
+          <div class="tbl-wrap" style="margin-bottom:16px">
+            <table>
+              <thead><tr>
+                <th>Metric</th><th class="num">Nov-25</th><th class="num">Dec-25</th><th class="num">Jan-26</th><th class="num">Feb-26</th><th class="num">Mar-26</th><th class="num">Apr MTD</th>
+              </tr></thead>
+              <tbody>
+                <tr><td>Total Calls</td><td class="num">412</td><td class="num">387</td><td class="num">352</td><td class="num">321</td><td class="num">298</td><td class="num">142</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="chart-box-sm"><canvas id="care-calls-chart"></canvas></div>
+        </div>
+      </div>
+    </div><!-- /care -->
+
+    <!-- ════════ COMMUNICATIONS ════════ -->
+    <div class="view" id="v-comms">
+      <div class="g3">
+        <div class="stat-mini"><div class="sm-l">YTD Emails Sent</div><div class="sm-v">638,520</div><div class="sm-s">Across all markets</div></div>
+        <div class="stat-mini"><div class="sm-l">YTD Unique Opens</div><div class="sm-v">118,132</div><div class="sm-s">Avg open rate 19.6%</div></div>
+        <div class="stat-mini"><div class="sm-l">YTD Unique Clicks</div><div class="sm-v">14,220</div><div class="sm-s">Avg click rate 2.3%</div></div>
+      </div>
+
+      <div class="card">
+        <div class="section-h">Email Performance Summary</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>Metric</th><th class="num">Nov-25</th><th class="num">Dec-25</th><th class="num">Jan-26</th><th class="num">Feb-26</th><th class="num">Mar-26</th><th class="num">Apr-26 MTD</th><th class="num">YTD</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>Emails Sent</td><td class="num">17,891</td><td class="num">112,929</td><td class="num">128,400</td><td class="num">142,700</td><td class="num">158,200</td><td class="num">78,400</td><td class="num">638,520</td></tr>
+              <tr><td>Delivered</td><td class="num">17,107</td><td class="num">110,394</td><td class="num">125,100</td><td class="num">139,800</td><td class="num">155,100</td><td class="num">76,900</td><td class="num">624,401</td></tr>
+              <tr><td>Unique Opens</td><td class="num">4,118</td><td class="num">17,284</td><td class="num">21,450</td><td class="num">26,380</td><td class="num">32,100</td><td class="num">16,800</td><td class="num">118,132</td></tr>
+              <tr><td>Unique Clicks</td><td class="num">618</td><td class="num">1,922</td><td class="num">2,540</td><td class="num">3,180</td><td class="num">3,920</td><td class="num">2,040</td><td class="num">14,220</td></tr>
+              <tr><td>Open Rate</td><td class="num">24.1%</td><td class="num">15.7%</td><td class="num">17.1%</td><td class="num">18.9%</td><td class="num">20.7%</td><td class="num">21.8%</td><td class="num">—</td></tr>
+              <tr><td>Click Rate</td><td class="num">3.6%</td><td class="num">1.7%</td><td class="num">2.0%</td><td class="num">2.3%</td><td class="num">2.5%</td><td class="num">2.7%</td><td class="num">—</td></tr>
+              <tr><td>Click-to-Open Rate</td><td class="num">15.0%</td><td class="num">11.1%</td><td class="num">11.8%</td><td class="num">12.1%</td><td class="num">12.2%</td><td class="num">12.1%</td><td class="num">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="g2">
+        <div class="card">
+          <div class="section-h">Open &amp; Click Rate Trend</div>
+          <div class="chart-box"><canvas id="comms-rate-chart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="section-h">Social Media Engagement <span class="tag">Latest Month</span></div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Platform</th><th class="num">Followers</th><th class="num">Impressions</th><th class="num">Engagements</th><th class="num">Eng. %</th><th class="num">Conversions</th>
+              </tr></thead>
+              <tbody>
+                <tr><td>Facebook</td><td class="num">18,400</td><td class="num">186,000</td><td class="num">14,200</td><td class="num">7.6%</td><td class="num">412</td></tr>
+                <tr><td>Instagram</td><td class="num">22,100</td><td class="num">224,000</td><td class="num">19,800</td><td class="num">8.8%</td><td class="num">542</td></tr>
+                <tr><td>Twitter/X</td><td class="num">11,200</td><td class="num">98,000</td><td class="num">7,400</td><td class="num">7.6%</td><td class="num">212</td></tr>
+                <tr><td>TikTok</td><td class="num">14,800</td><td class="num">412,000</td><td class="num">38,600</td><td class="num">9.4%</td><td class="num">688</td></tr>
+                <tr><td>YouTube</td><td class="num">6,200</td><td class="num">62,400</td><td class="num">4,820</td><td class="num">7.7%</td><td class="num">142</td></tr>
+                <tr><td>LinkedIn</td><td class="num">3,800</td><td class="num">18,400</td><td class="num">1,240</td><td class="num">6.7%</td><td class="num">32</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-h">Campaign Tracker <span class="tag">All campaigns</span></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>Date</th><th>Campaign</th><th>Market</th>
+              <th class="num">Sent</th><th class="num">Delivered</th><th class="num">Opens</th><th class="num">Clicks</th><th class="num">Sign-Ups</th>
+              <th class="num">Open%</th><th class="num">Click%</th><th class="num">CTOR</th>
+            </tr></thead>
+            <tbody id="comms-campaign-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /comms -->
+
+    <!-- ════════ CONTENT & VIEWERSHIP ════════ -->
+    <div class="view" id="v-content">
+      <div class="g2">
+        <div class="card">
+          <div class="section-h">Total Hours Watched by Month</div>
+          <div class="tbl-wrap" style="margin-bottom:14px">
+            <table>
+              <thead><tr>
+                <th>Month</th><th class="num">Mobile (hrs)</th><th class="num">CTV/TV (hrs)</th><th class="num">Total</th><th class="num">Sessions</th><th class="num">MoM %</th>
+              </tr></thead>
+              <tbody>
+                <tr><td>Nov-25</td><td class="num">207.3</td><td class="num">358.2</td><td class="num">565.5</td><td class="num">517</td><td class="num">—</td></tr>
+                <tr><td>Dec-25</td><td class="num">480.2</td><td class="num">528.3</td><td class="num">1,008.5</td><td class="num">892</td><td class="num">+78.3%</td></tr>
+                <tr><td>Jan-26</td><td class="num">612.5</td><td class="num">718.4</td><td class="num">1,330.9</td><td class="num">1,284</td><td class="num">+32.0%</td></tr>
+                <tr><td>Feb-26</td><td class="num">745.1</td><td class="num">864.6</td><td class="num">1,609.7</td><td class="num">1,568</td><td class="num">+20.9%</td></tr>
+                <tr><td>Mar-26</td><td class="num">892.4</td><td class="num">1,048.2</td><td class="num">1,940.6</td><td class="num">1,920</td><td class="num">+20.6%</td></tr>
+                <tr><td>Apr-26 MTD</td><td class="num">498.2</td><td class="num">582.4</td><td class="num">1,080.6</td><td class="num">1,062</td><td class="num">MTD</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-h">Hours Watched — Mobile vs CTV</div>
+          <div class="chart-box"><canvas id="content-hours-chart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-h">Top 20 Content — April 2026 MTD</div>
+        <div class="g2">
+          <div>
+            <p style="font-size:11.5px;font-weight:600;color:#0B2545;margin-bottom:8px;padding:6px 10px;background:#EBF4FF;border-radius:6px">📱 Mobile</p>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr><th>#</th><th>Title</th><th class="num">Hours</th><th class="num">Sessions</th><th class="num">% Total</th></tr></thead>
+                <tbody id="content-mobile-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <p style="font-size:11.5px;font-weight:600;color:#0B2545;margin-bottom:8px;padding:6px 10px;background:#F0FDF4;border-radius:6px">📺 CTV / TV</p>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr><th>#</th><th>Title</th><th class="num">Hours</th><th class="num">Sessions</th><th class="num">% Total</th></tr></thead>
+                <tbody id="content-ctv-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /content -->
+
+    <!-- ════════ REVENUE FORECAST ════════ -->
+    <div class="view" id="v-revenue">
+      <div class="g4">
+        <div class="assump"><div class="a-l">Subscription Price (US$)</div><div class="a-v">$5.50</div></div>
+        <div class="assump"><div class="a-l">Cost per User (US$)</div><div class="a-v">$1.09</div></div>
+        <div class="assump"><div class="a-l">Monthly Growth Rate</div><div class="a-v">15.0%</div></div>
+        <div class="assump"><div class="a-l">Churn Rate</div><div class="a-v">3.0%</div></div>
+      </div>
+
+      <div class="g3" style="margin-bottom:18px">
+        <div class="stat-mini"><div class="sm-l">Total Annual Revenue (12-mo)</div><div class="sm-v">$106,750</div><div class="sm-s">Cumulative Nov-25 → Oct-26</div></div>
+        <div class="stat-mini"><div class="sm-l">Total Annual Cost</div><div class="sm-v">$24,391</div><div class="sm-s">Cost per user model</div></div>
+        <div class="stat-mini"><div class="sm-l">Avg Profit Margin</div><div class="sm-v">77.2%</div><div class="sm-s">Avg monthly gross margin</div></div>
+      </div>
+
+      <div class="g2">
+        <div class="card">
+          <div class="section-h">Monthly Revenue Forecast</div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Month</th><th class="num">Users</th><th class="num">Paying</th><th class="num">Revenue</th><th class="num">Cost</th><th class="num">Gross Profit</th><th class="num">Margin</th><th>Type</th>
+              </tr></thead>
+              <tbody id="revenue-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-h">Revenue &amp; Profit — Cumulative</div>
+          <div class="chart-box-lg"><canvas id="revenue-chart"></canvas></div>
+        </div>
+      </div>
+    </div><!-- /revenue -->
+
+    <!-- ════════ CPE BOX ════════ -->
+    <div class="view" id="v-cpebox">
+      <div class="card">
+        <div class="section-h">Entertainment Box — Monthly KPIs</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>Metric</th><th class="num">Nov-25</th><th class="num">Dec-25</th><th class="num">Jan-26</th><th class="num">Feb-26</th><th class="num">Mar-26</th><th class="num">Apr-26 MTD</th><th class="num">YTD</th><th class="num">Target</th>
+            </tr></thead>
+            <tbody id="cpebox-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="section-h">Box Orders &amp; Activations</div>
+          <div class="chart-box"><canvas id="cpebox-chart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="section-h">Box Orders by Market (YTD)</div>
+          <div class="tbl-wrap" style="margin-bottom:14px">
+            <table>
+              <thead><tr>
+                <th>Market</th><th class="num">Ordered</th><th class="num">Activated</th><th class="num">Act. Rate</th><th class="num">Attach Rate</th>
+              </tr></thead>
+              <tbody>
+                <tr><td>Jamaica</td><td class="num">168</td><td class="num">156</td><td class="num">92.9%</td><td class="num">28.0%</td></tr>
+                <tr><td>Trinidad</td><td class="num">112</td><td class="num">104</td><td class="num">92.9%</td><td class="num">22.0%</td></tr>
+                <tr><td>Barbados</td><td class="num">52</td><td class="num">48</td><td class="num">92.3%</td><td class="num">24.0%</td></tr>
+                <tr><td>Cayman Islands</td><td class="num">18</td><td class="num">17</td><td class="num">94.4%</td><td class="num">36.0%</td></tr>
+                <tr><td>Saint Lucia</td><td class="num">14</td><td class="num">13</td><td class="num">92.9%</td><td class="num">18.0%</td></tr>
+                <tr><td>Other Markets</td><td class="num">76</td><td class="num">71</td><td class="num">93.4%</td><td class="num">15.0%</td></tr>
+                <tr class="total-row"><td>TOTAL</td><td class="num">440</td><td class="num">409</td><td class="num">93.0%</td><td class="num">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div><!-- /cpebox -->
+
+    <!-- ════════ WEBSITE ANALYTICS ════════ -->
+    <div class="view" id="v-web">
+      <div class="g3" style="margin-bottom:18px">
+        <div class="stat-mini"><div class="sm-l">Total YTD Visitors</div><div class="sm-v">57,200</div><div class="sm-s">Unique: 50,969</div></div>
+        <div class="stat-mini"><div class="sm-l">Total Conversions (YTD)</div><div class="sm-v">1,960</div><div class="sm-s">Avg conv. rate 3.4%</div></div>
+        <div class="stat-mini"><div class="sm-l">Top Traffic Source</div><div class="sm-v">Organic</div><div class="sm-s">39.9% of visitors</div></div>
+      </div>
+
+      <div class="g2">
+        <div class="card">
+          <div class="section-h">Traffic Sources (YTD)</div>
+          <div class="tbl-wrap" style="margin-bottom:14px">
+            <table>
+              <thead><tr>
+                <th>Source</th><th class="num">Visitors</th><th class="num">% Total</th><th class="num">Conversions</th><th class="num">Conv. %</th>
+              </tr></thead>
+              <tbody>
+                <tr><td>Organic Search</td><td class="num">22,800</td><td class="num">39.9%</td><td class="num">729</td><td class="num">3.2%</td></tr>
+                <tr><td>Referral</td><td class="num">9,860</td><td class="num">17.2%</td><td class="num">394</td><td class="num">4.0%</td></tr>
+                <tr><td>Direct</td><td class="num">8,420</td><td class="num">14.7%</td><td class="num">252</td><td class="num">3.0%</td></tr>
+                <tr><td>Paid Search</td><td class="num">6,140</td><td class="num">10.7%</td><td class="num">208</td><td class="num">3.4%</td></tr>
+                <tr><td>Email</td><td class="num">4,980</td><td class="num">8.7%</td><td class="num">189</td><td class="num">3.8%</td></tr>
+                <tr><td>Social Media</td><td class="num">3,520</td><td class="num">6.2%</td><td class="num">126</td><td class="num">3.6%</td></tr>
+                <tr><td>Other</td><td class="num">1,480</td><td class="num">2.6%</td><td class="num">62</td><td class="num">4.2%</td></tr>
+                <tr class="total-row"><td>TOTAL</td><td class="num">57,200</td><td class="num">100%</td><td class="num">1,960</td><td class="num">3.4%</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-h">Traffic Source Mix</div>
+          <div class="chart-box"><canvas id="web-source-chart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="g2">
+        <div class="card">
+          <div class="section-h">Monthly Web Log</div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Month</th><th class="num">Visits</th><th class="num">Unique</th><th class="num">Conv. %</th>
+              </tr></thead>
+              <tbody>
+                <tr><td>Nov-25</td><td class="num">6,558</td><td class="num">6,106</td><td class="num">93.1%</td></tr>
+                <tr><td>Dec-25</td><td class="num">2,491</td><td class="num">1,949</td><td class="num">78.2%</td></tr>
+                <tr><td>Jan-26</td><td class="num">8,420</td><td class="num">7,382</td><td class="num">87.7%</td></tr>
+                <tr><td>Feb-26</td><td class="num">12,240</td><td class="num">10,680</td><td class="num">87.3%</td></tr>
+                <tr><td>Mar-26</td><td class="num">18,620</td><td class="num">16,240</td><td class="num">87.2%</td></tr>
+                <tr><td>Apr-26 MTD</td><td class="num">9,852</td><td class="num">8,612</td><td class="num">87.4%</td></tr>
+                <tr class="total-row"><td>TOTAL</td><td class="num">58,181</td><td class="num">50,969</td><td class="num">87.6%</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-h">Visitors by Country (YTD) — Top 10</div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Country</th><th class="num">Visitors</th><th class="num">% Total</th><th class="num">Conversions</th>
+              </tr></thead>
+              <tbody>
+                <tr><td>Jamaica</td><td class="num">21,480</td><td class="num">37.6%</td><td class="num">751</td></tr>
+                <tr><td>Trinidad &amp; Tobago</td><td class="num">18,420</td><td class="num">32.2%</td><td class="num">644</td></tr>
+                <tr><td>Barbados</td><td class="num">5,240</td><td class="num">9.2%</td><td class="num">183</td></tr>
+                <tr><td>Cayman Islands</td><td class="num">1,280</td><td class="num">2.2%</td><td class="num">44</td></tr>
+                <tr><td>Saint Lucia</td><td class="num">980</td><td class="num">1.7%</td><td class="num">34</td></tr>
+                <tr><td>Antigua</td><td class="num">620</td><td class="num">1.1%</td><td class="num">21</td></tr>
+                <tr><td>Curacao</td><td class="num">540</td><td class="num">0.9%</td><td class="num">18</td></tr>
+                <tr><td>Grenada</td><td class="num">640</td><td class="num">1.1%</td><td class="num">22</td></tr>
+                <tr><td>St. Vincent</td><td class="num">720</td><td class="num">1.3%</td><td class="num">25</td></tr>
+                <tr><td>Rest of World</td><td class="num">7,260</td><td class="num">12.7%</td><td class="num">278</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div><!-- /web -->
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+// ══════════════════════════════════════════════
+//  DATA
+// ══════════════════════════════════════════════
+const MONTHS = ['Nov-25','Dec-25','Jan-26','Feb-26','Mar-26','Apr-26 MTD'];
+const PALETTE = ['#00C2E0','#0B2545','#16A34A','#F59E0B','#8B5CF6','#EF4444','#06B6D4','#F97316'];
+
+const npsData = [
+  {market:'Jamaica',       s:52, tv:44, overall:48, csat:0.804, sample:138, mom:0.02,  sentiment:'Good'},
+  {market:'Trinidad',      s:48, tv:41, overall:45, csat:0.796, sample:112, mom:0.025, sentiment:'Good'},
+  {market:'Barbados',      s:44, tv:39, overall:42, csat:0.788, sample:68,  mom:0.03,  sentiment:'Good'},
+  {market:'Cayman Islands',s:56, tv:49, overall:53, csat:0.812, sample:22,  mom:0.02,  sentiment:'Excellent'},
+  {market:'Curacao',       s:39, tv:36, overall:38, csat:0.778, sample:14,  mom:0.025, sentiment:'Good'},
+  {market:'Dominica',      s:41, tv:38, overall:40, csat:0.782, sample:9,   mom:0.03,  sentiment:'Good'},
+  {market:'Grenada',       s:43, tv:37, overall:40, csat:0.786, sample:11,  mom:0.02,  sentiment:'Good'},
+  {market:'St. Vincent',   s:40, tv:35, overall:38, csat:0.780, sample:14,  mom:0.025, sentiment:'Good'},
+  {market:'Saint Lucia',   s:45, tv:40, overall:43, csat:0.790, sample:18,  mom:0.03,  sentiment:'Good'},
+  {market:'Saint Kitts',   s:42, tv:38, overall:40, csat:0.784, sample:8,   mom:0.02,  sentiment:'Good'},
+  {market:'Turks &amp; Caicos', s:38, tv:34, overall:36, csat:0.776, sample:6, mom:0.025, sentiment:'Good'},
+  {market:'Antigua',       s:46, tv:41, overall:44, csat:0.792, sample:10,  mom:0.03,  sentiment:'Good'},
+  {market:'Outside Region',s:35, tv:30, overall:33, csat:0.770, sample:7,   mom:0.02,  sentiment:'Good'},
+];
+
+const prodopsData = [
+  {kpi:'Activation Success Rate',   vals:[0.845,0.872,0.889,0.901,0.914,0.921], mom:0.0077, target:0.90,  status:'On Track',    fmt:'pct'},
+  {kpi:'Avg Minute Audience (hrs)', vals:[565.5,1172.3,1480,1805,2185,1260],    mom:-0.423, target:2000,  status:'On Track',    fmt:'num'},
+  {kpi:'Monthly Active Users',      vals:[660,795,975,1215,1525,1705],           mom:0.118,  target:1500,  status:'On Track',    fmt:'num'},
+  {kpi:'Contact Center Calls',      vals:[412,387,352,321,298,142],              mom:-0.523, target:400,   status:'Above Target',fmt:'num'},
+  {kpi:'App Crashes (per 1k sess)', vals:[6.8,5.9,4.7,3.8,3.1,2.6],             mom:-0.161, target:3,     status:'Above Target',fmt:'dec1'},
+  {kpi:'Marketing Conversions',     vals:[1380,1912,2248,2612,3015,1488],        mom:-0.506, target:2500,  status:'On Track',    fmt:'num'},
+  {kpi:'App Rating (avg)',          vals:[2.81,3.01,3.18,3.34,3.49,3.58],        mom:0.026,  target:4.0,   status:'On Track',    fmt:'dec2'},
+];
+
+const commercialData = [
+  {kpi:'Total RGUs',                vals:[454,795,1125,1498,1920,2185],   mom:0.138,  target:2500,   fmt:'num'},
+  {kpi:'CapEx Avoided (US$, cum.)', vals:[38500,72800,109400,149700,195800,226400], mom:0.156, target:300000, fmt:'usd'},
+  {kpi:'CPE-Less Gross Adds',       vals:[301,412,486,562,648,312],        mom:-0.519, target:600,    fmt:'num'},
+  {kpi:'Swap — AVS → CPE-Less',     vals:[42,58,74,91,112,58],             mom:-0.482, target:100,    fmt:'num'},
+  {kpi:'Swap — HubTV → CPE-Less',   vals:[18,29,38,52,68,34],              mom:-0.500, target:60,     fmt:'num'},
+  {kpi:'CPE-Less Churn Rate',       vals:[0.021,0.025,0.028,0.030,0.027,0.024], mom:-0.111, target:0.030, fmt:'pct'},
+  {kpi:"Mo'Love Attach Rate",       vals:[0.182,0.214,0.238,0.261,0.285,0.298], mom:0.046, target:0.300, fmt:'pct'},
+  {kpi:'ARPU (US$)',                vals:[5.42,5.48,5.55,5.61,5.68,5.72],  mom:0.007,  target:6.00,   fmt:'usd2'},
+];
+
+const marketData = [
+  {market:'Jamaica',         vals:[206,212,248,306,412,232], ytd:1616, pct:0.490},
+  {market:'Trinidad',        vals:[454,-77,62,95,148,92],    ytd:774,  pct:0.235},
+  {market:'Barbados',        vals:[0,0,88,122,165,94],       ytd:469,  pct:0.142},
+  {market:'Cayman Islands',  vals:[0,0,12,18,24,14],         ytd:68,   pct:0.021},
+  {market:'Curacao',         vals:[0,0,6,10,14,8],           ytd:38,   pct:0.012},
+  {market:'Dominica',        vals:[0,0,4,6,9,5],             ytd:24,   pct:0.007},
+  {market:'Grenada',         vals:[0,0,8,11,15,9],           ytd:43,   pct:0.013},
+  {market:'St. Vincent',     vals:[0,0,14,19,24,14],         ytd:71,   pct:0.022},
+  {market:'Saint Lucia',     vals:[0,0,16,22,28,16],         ytd:82,   pct:0.025},
+  {market:'Saint Kitts',     vals:[0,0,3,5,7,4],             ytd:19,   pct:0.006},
+  {market:'Turks &amp; Caicos',vals:[0,0,3,4,6,3],           ytd:16,   pct:0.005},
+  {market:'Antigua',         vals:[0,0,4,6,9,5],             ytd:24,   pct:0.007},
+  {market:'Outside Region',  vals:[0,0,12,16,19,9],          ytd:56,   pct:0.017},
+];
+const platformData = [
+  {platform:'Google Play',      vals:[919,679,820,1020,1260,690],  ytd:5388},
+  {platform:'iOS App Store',    vals:[1260,741,900,1120,1380,760], ytd:6161},
+  {platform:'Apple TV',         vals:[4,19,42,71,108,62],          ytd:306},
+  {platform:'Amazon Firestick', vals:[55,69,120,165,220,128],       ytd:757},
+  {platform:'Google TV',        vals:[150,200,260,335,420,240],     ytd:1605},
+];
+
+const npsTrend = [
+  {market:'Jamaica',       vals:[18,22,24,26,27,28]},
+  {market:'Trinidad',      vals:[12,15,17,19,21,22]},
+  {market:'Barbados',      vals:[10,12,14,16,17,18]},
+  {market:'Cayman Islands',vals:[30,32,34,36,38,40]},
+  {market:'Saint Lucia',   vals:[12,14,15,17,18,19]},
+];
+
+const campaigns = [
+  {date:'11/04/25',name:'TT AVS Customer Email Nov 4',          market:'Trinidad',    sent:2329,  delivered:2293, opens:1000, clicks:213, signups:62,  openp:0.436,clickp:0.093},
+  {date:'11/10/25',name:'TT BB Customer Email Nov 11',          market:'Trinidad',    sent:594,   delivered:584,  opens:211,  clicks:62,  signups:38,  openp:0.361,clickp:0.106},
+  {date:'11/18/25',name:'JM Liberate Reggae Boyz Campaign',     market:'Jamaica',     sent:4655,  delivered:4359, opens:1052, clicks:25,  signups:14,  openp:0.241,clickp:0.006},
+  {date:'11/20/25',name:'JM Liberate Invite Campaign',          market:'Jamaica',     sent:5235,  delivered:4920, opens:1163, clicks:244, signups:142, openp:0.236,clickp:0.050},
+  {date:'11/20/25',name:'Caribbean Multi-Market Liberate Invite',market:'Caribbean', sent:220,   delivered:216,  opens:96,   clicks:37,  signups:22,  openp:0.444,clickp:0.171},
+  {date:'12/05/25',name:'Bluu Weekly Newsletter',               market:'All Markets', sent:16334, delivered:16065,opens:2381, clicks:328, signups:88,  openp:0.148,clickp:0.020},
+  {date:'12/12/25',name:'Bluu Weekly Newsletter',               market:'All Markets', sent:16334, delivered:16065,opens:3655, clicks:793, signups:162, openp:0.228,clickp:0.049},
+  {date:'12/17/25',name:'JM Cerillion P0 &amp; P1 Superstars', market:'Jamaica',     sent:17639, delivered:16731,opens:2460, clicks:180, signups:102, openp:0.147,clickp:0.011},
+  {date:'12/19/25',name:'Bluu Weekly Newsletter',               market:'All Markets', sent:31395, delivered:30862,opens:4676, clicks:388, signups:124, openp:0.152,clickp:0.013},
+  {date:'12/26/25',name:'Bluu Weekly Newsletter',               market:'All Markets', sent:31227, delivered:30671,opens:4112, clicks:233, signups:98,  openp:0.134,clickp:0.008},
+  {date:'01/09/26',name:'Bluu Weekly Newsletter',               market:'All Markets', sent:32140, delivered:31589,opens:4920, clicks:412, signups:138, openp:0.156,clickp:0.013},
+  {date:'01/16/26',name:'JM New Year Reactivation',             market:'Jamaica',     sent:18240, delivered:17892,opens:3240, clicks:488, signups:168, openp:0.181,clickp:0.027},
+  {date:'01/23/26',name:'Bluu Weekly Newsletter',               market:'All Markets', sent:33050, delivered:32480,opens:5180, clicks:462, signups:152, openp:0.159,clickp:0.014},
+  {date:'01/30/26',name:'Barbados Launch Invite',               market:'Barbados',    sent:14280, delivered:14020,opens:4180, clicks:920, signups:312, openp:0.298,clickp:0.066},
+  {date:'02/06/26',name:'Bluu Weekly Newsletter',               market:'All Markets', sent:34800, delivered:34180,opens:5620, clicks:518, signups:178, openp:0.164,clickp:0.015},
+  {date:'02/13/26',name:"Valentine's Promo — Mo'Love",          market:'All Markets', sent:28400, delivered:27890,opens:7240, clicks:1420,signups:512, openp:0.260,clickp:0.051},
+  {date:'02/20/26',name:'Bluu Weekly Newsletter',               market:'All Markets', sent:35620, delivered:34980,opens:6180, clicks:572, signups:202, openp:0.177,clickp:0.016},
+  {date:'02/27/26',name:'Saint Lucia Launch Invite',            market:'Saint Lucia', sent:3890,  delivered:3820, opens:1120, clicks:288, signups:102, openp:0.293,clickp:0.075},
+  {date:'03/06/26',name:'Bluu Weekly Newsletter',               market:'All Markets', sent:36940, delivered:36280,opens:6480, clicks:612, signups:228, openp:0.179,clickp:0.017},
+  {date:'03/13/26',name:'Cricket West Indies Campaign',         market:'All Markets', sent:39820, delivered:39100,opens:9240, clicks:1840,signups:682, openp:0.236,clickp:0.047},
+  {date:'03/20/26',name:'Bluu Weekly Newsletter',               market:'All Markets', sent:37680, delivered:37020,opens:6820, clicks:648, signups:242, openp:0.184,clickp:0.018},
+  {date:'03/27/26',name:'Entertainment Box Pre-Order',          market:'All Markets', sent:42180, delivered:41420,opens:10120,clicks:2180,signups:812, openp:0.244,clickp:0.053},
+  {date:'04/03/26',name:'Bluu Weekly Newsletter',               market:'All Markets', sent:38420, delivered:37780,opens:7120, clicks:688, signups:262, openp:0.188,clickp:0.018},
+  {date:'04/10/26',name:'Easter Family Campaign',               market:'All Markets', sent:31290, delivered:30720,opens:7840, clicks:1520,signups:542, openp:0.255,clickp:0.049},
+];
+
+const contentMobile = [
+  {rank:1, title:'ICC Champions Trophy: WI vs ENG LIVE',      hrs:82.4, sess:148, pct:0.118},
+  {rank:2, title:'CPL 2026 Semi-Final #1 LIVE',               hrs:64.8, sess:112, pct:0.093},
+  {rank:3, title:'UCL QF: Arsenal vs Real Madrid',            hrs:58.2, sess:94,  pct:0.083},
+  {rank:4, title:'PL MD33: Man City vs Liverpool LIVE',       hrs:52.6, sess:88,  pct:0.075},
+  {rank:5, title:'CONCACAF Nations League Final',             hrs:48.1, sess:76,  pct:0.069},
+  {rank:6, title:'WI vs SA Test #2 Day 3 LIVE',               hrs:42.8, sess:68,  pct:0.061},
+  {rank:7, title:'La Liga: Real Madrid vs Barcelona',         hrs:39.5, sess:64,  pct:0.057},
+  {rank:8, title:'TV6 News',                                  hrs:36.2, sess:132, pct:0.052},
+  {rank:9, title:'F1 Bahrain GP 2026 — Race',                 hrs:34.8, sess:52,  pct:0.050},
+  {rank:10,title:'NBA Playoffs Rd 1 Game 4',                  hrs:31.2, sess:58,  pct:0.045},
+  {rank:11,title:'Morning Edition',                           hrs:28.9, sess:96,  pct:0.041},
+  {rank:12,title:'Bundesliga: Bayern vs Dortmund',            hrs:26.4, sess:42,  pct:0.038},
+  {rank:13,title:'PRIME TIME NEWS',                           hrs:24.8, sess:88,  pct:0.035},
+  {rank:14,title:'CPL 2026 Eliminator',                       hrs:22.6, sess:38,  pct:0.032},
+  {rank:15,title:'Al Jazeera Live',                           hrs:21.1, sess:54,  pct:0.030},
+  {rank:16,title:'WI vs SA ODI #3 LIVE',                      hrs:19.8, sess:44,  pct:0.028},
+  {rank:17,title:'La Liga: Atletico Madrid vs Sevilla',       hrs:18.2, sess:32,  pct:0.026},
+  {rank:18,title:'Serie A: Inter vs Juventus',                hrs:16.9, sess:28,  pct:0.024},
+  {rank:19,title:'CNC3 Newscast',                             hrs:15.6, sess:72,  pct:0.022},
+  {rank:20,title:'NCAA Final Four',                           hrs:14.2, sess:22,  pct:0.020},
+];
+
+const contentCTV = [
+  {rank:1, title:'TV6 News',                           hrs:84.2, sess:48, pct:0.103},
+  {rank:2, title:'CPL 2026 Semi-Final #1 LIVE',        hrs:72.6, sess:22, pct:0.089},
+  {rank:3, title:'UCL QF: Arsenal vs Real Madrid',     hrs:68.4, sess:18, pct:0.083},
+  {rank:4, title:'ICC Champions Trophy: WI vs ENG',    hrs:64.8, sess:28, pct:0.079},
+  {rank:5, title:'PL MD33: Man City vs Liverpool',     hrs:58.2, sess:16, pct:0.071},
+  {rank:6, title:'CONCACAF Nations League Final',      hrs:54.1, sess:14, pct:0.066},
+  {rank:7, title:'La Liga: Real Madrid vs Barcelona',  hrs:48.6, sess:12, pct:0.059},
+  {rank:8, title:'Morning Edition',                    hrs:46.2, sess:24, pct:0.056},
+  {rank:9, title:'Al Jazeera Live',                    hrs:42.8, sess:18, pct:0.052},
+  {rank:10,title:'CSI Cyber',                          hrs:38.4, sess:8,  pct:0.047},
+  {rank:11,title:'WI vs SA Test #2 Day 3 LIVE',        hrs:36.1, sess:14, pct:0.044},
+  {rank:12,title:'F1 Bahrain GP 2026 — Race',          hrs:32.9, sess:6,  pct:0.040},
+  {rank:13,title:'CBS Evening News (Live)',             hrs:28.8, sess:12, pct:0.035},
+  {rank:14,title:'Serie A: Inter vs Juventus',         hrs:26.4, sess:8,  pct:0.032},
+  {rank:15,title:'The TV6 News — Late Night',          hrs:24.1, sess:22, pct:0.029},
+  {rank:16,title:'NBA Playoffs Rd 1 Game 4',           hrs:22.8, sess:7,  pct:0.028},
+  {rank:17,title:'PRIME TIME NEWS',                    hrs:20.4, sess:18, pct:0.025},
+  {rank:18,title:'Bundesliga: Bayern vs Dortmund',     hrs:18.2, sess:6,  pct:0.022},
+  {rank:19,title:'WI vs SA ODI #3 LIVE',               hrs:16.4, sess:9,  pct:0.020},
+  {rank:20,title:'La Liga: Atletico Madrid vs Sevilla',hrs:14.8, sess:5,  pct:0.018},
+];
+
+const revenueData = [
+  {month:'Nov-25',  users:660,  paying:454,  rev:2497,    cost:719,    profit:1778,  margin:0.712, type:'Actual'},
+  {month:'Dec-25',  users:795,  paying:668,  rev:3674,    cost:867,    profit:2807,  margin:0.764, type:'Actual'},
+  {month:'Jan-26',  users:975,  paying:812,  rev:4466,    cost:1063,   profit:3403,  margin:0.762, type:'Actual'},
+  {month:'Feb-26',  users:1215, paying:1045, rev:5748,    cost:1324,   profit:4423,  margin:0.770, type:'Actual'},
+  {month:'Mar-26',  users:1525, paying:1320, rev:7260,    cost:1662,   profit:5598,  margin:0.771, type:'Actual'},
+  {month:'Apr-26',  users:1705, paying:1498, rev:8239,    cost:1858,   profit:6381,  margin:0.774, type:'MTD'},
+  {month:'May-26',  users:1910, paying:1678, rev:9229,    cost:2082,   profit:7147,  margin:0.774, type:'Forecast'},
+  {month:'Jun-26',  users:2139, paying:1879, rev:10335,   cost:2332,   profit:8003,  margin:0.774, type:'Forecast'},
+  {month:'Jul-26',  users:2396, paying:2104, rev:11572,   cost:2612,   profit:8960,  margin:0.774, type:'Forecast'},
+  {month:'Aug-26',  users:2684, paying:2356, rev:12958,   cost:2926,   profit:10032, margin:0.774, type:'Forecast'},
+  {month:'Sep-26',  users:3006, paying:2639, rev:14515,   cost:3277,   profit:11238, margin:0.774, type:'Forecast'},
+  {month:'Oct-26',  users:3367, paying:2956, rev:16258,   cost:3670,   profit:12588, margin:0.774, type:'Forecast'},
+];
+
+const cpeboxData = [
+  {metric:'Boxes Ordered',               vals:[0,0,48,112,182,98],            ytd:440,  target:400,  fmt:'num'},
+  {metric:'Boxes Shipped',               vals:[0,0,42,108,174,92],            ytd:416,  target:380,  fmt:'num'},
+  {metric:'Boxes Activated',             vals:[0,0,38,101,164,86],            ytd:389,  target:360,  fmt:'num'},
+  {metric:'Activation Rate',             vals:[0,0,0.905,0.935,0.943,0.935], ytd:0.930,target:0.95, fmt:'pct'},
+  {metric:'Returns / RMAs',              vals:[0,0,2,4,6,3],                  ytd:15,   target:10,   fmt:'num'},
+  {metric:'Attach Rate (Box ÷ Adds)',    vals:[0,0,0.078,0.180,0.253,0.276], ytd:0.197,target:0.25, fmt:'pct'},
+  {metric:'Avg Revenue per Box (US$)',   vals:[0,0,79,79,74.5,74.5],          ytd:307,  target:80,   fmt:'usd2'},
+  {metric:'Box-Attached Churn',          vals:[0,0,0.012,0.015,0.018,0.020], ytd:0.016,target:0.025,fmt:'pct'},
+];
+
+// ══════════════════════════════════════════════
+//  FORMATTERS
+// ══════════════════════════════════════════════
+function fmtVal(v, fmt){
+  if(v===null||v===undefined||v==='—') return '—';
+  switch(fmt){
+    case 'pct':  return (v*100).toFixed(1)+'%';
+    case 'num':  return v===0?'—':v.toLocaleString();
+    case 'dec1': return v.toFixed(1);
+    case 'dec2': return v.toFixed(2);
+    case 'usd':  return '$'+v.toLocaleString(undefined,{maximumFractionDigits:0});
+    case 'usd2': return '$'+v.toFixed(2);
+    default:     return v;
+  }
+}
+function fmtDelta(v, fmt, invert){
+  const pos = invert ? v<0 : v>0;
+  const arrow = v>0?'▲':'▼';
+  const cls = pos?'delta-up':'delta-down';
+  let abs = Math.abs(v);
+  let str = fmt==='pct'||fmt==='usd'||fmt==='usd2'||fmt==='dec1'||fmt==='dec2'
+            ? (abs*100).toFixed(1)+'%' : (abs*100).toFixed(1)+'%';
+  return `<span class="${cls}">${arrow} ${str}</span>`;
+}
+function statusBadge(s){
+  if(s==='On Track')    return '<span class="badge b-green">On Track</span>';
+  if(s==='Above Target')return '<span class="badge b-blue">Above Target</span>';
+  if(s==='At Risk')     return '<span class="badge b-yellow">At Risk</span>';
+  if(s==='Below Target')return '<span class="badge b-red">Below Target</span>';
+  return `<span class="badge b-gray">${s}</span>`;
+}
+function sentimentBadge(s){
+  if(s==='Excellent') return `<span class="nps-val nps-ex">⬆ Excellent</span>`;
+  if(s==='Good')      return `<span class="nps-val nps-good">✓ Good</span>`;
+  return `<span class="nps-val nps-ok">${s}</span>`;
+}
+function typeBadge(t){
+  if(t==='Actual')   return '<span class="badge b-green">Actual</span>';
+  if(t==='MTD')      return '<span class="badge b-blue">MTD</span>';
+  if(t==='Forecast') return '<span class="badge b-gray">Forecast</span>';
+  return t;
+}
+
+// ══════════════════════════════════════════════
+//  POPULATE TABLES
+// ══════════════════════════════════════════════
+function populateExecNPS(){
+  const tb = document.getElementById('exec-nps-tbody');
+  tb.innerHTML = npsData.map(r=>`<tr>
+    <td>${r.market}</td>
+    <td class="num">${r.s}</td>
+    <td class="num">${r.tv}</td>
+    <td class="num" style="font-weight:600">${r.overall}</td>
+    <td class="num">${(r.csat*100).toFixed(1)}%</td>
+    <td class="num">${r.sample}</td>
+    <td>${sentimentBadge(r.sentiment)}</td>
+  </tr>`).join('');
+}
+
+function populateProdOps(){
+  const tb = document.getElementById('prodops-tbody');
+  const inv = {kpi:'Contact Center Calls',yes:true};
+  tb.innerHTML = prodopsData.map(r=>{
+    const invertDelta = r.kpi==='Contact Center Calls'||r.kpi==='App Crashes (per 1k sess)';
+    return `<tr>
+      <td style="min-width:200px">${r.kpi}</td>
+      ${r.vals.map(v=>`<td class="num">${fmtVal(v,r.fmt)}</td>`).join('')}
+      <td class="num">${fmtDelta(r.mom,r.fmt,invertDelta)}</td>
+      <td class="num">${fmtVal(r.target,r.fmt)}</td>
+      <td>${statusBadge(r.status)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function populateCommercial(){
+  const tb = document.getElementById('commercial-tbody');
+  tb.innerHTML = commercialData.map(r=>`<tr>
+    <td style="min-width:220px">${r.kpi}</td>
+    ${r.vals.map(v=>`<td class="num">${fmtVal(v,r.fmt)}</td>`).join('')}
+    <td class="num">${fmtDelta(r.mom,r.fmt,false)}</td>
+    <td class="num">${fmtVal(r.target,r.fmt)}</td>
+  </tr>`).join('');
+}
+
+function populateUserMarket(){
+  const tb = document.getElementById('user-market-tbody');
+  tb.innerHTML = marketData.map(r=>`<tr>
+    <td>${r.market}</td>
+    ${r.vals.map(v=>`<td class="num">${v===0?'—':v.toLocaleString()}</td>`).join('')}
+    <td class="num">${r.ytd.toLocaleString()}</td>
+    <td class="num">${(r.pct*100).toFixed(1)}%</td>
+  </tr>`).join('')
+  + `<tr class="total-row"><td>TOTAL</td><td class="num">660</td><td class="num">135</td><td class="num">480</td><td class="num">640</td><td class="num">880</td><td class="num">505</td><td class="num">3,300</td><td class="num">100%</td></tr>`;
+}
+
+function populateUserPlatform(){
+  const tb = document.getElementById('user-platform-tbody');
+  tb.innerHTML = platformData.map(r=>`<tr>
+    <td>${r.platform}</td>
+    ${r.vals.map(v=>`<td class="num">${v.toLocaleString()}</td>`).join('')}
+    <td class="num">${r.ytd.toLocaleString()}</td>
+  </tr>`).join('')
+  + `<tr class="total-row"><td>TOTAL</td><td class="num">2,388</td><td class="num">1,708</td><td class="num">2,142</td><td class="num">2,711</td><td class="num">3,388</td><td class="num">1,880</td><td class="num">14,217</td></tr>`;
+}
+
+function populateCareNPS(){
+  const tb = document.getElementById('care-nps-tbody');
+  tb.innerHTML = npsData.map(r=>`<tr>
+    <td>${r.market}</td>
+    <td class="num">${r.s}</td>
+    <td class="num">${r.tv}</td>
+    <td class="num" style="font-weight:700">${r.overall}</td>
+    <td class="num">${(r.csat*100).toFixed(1)}%</td>
+    <td class="num">${r.sample}</td>
+    <td class="num"><span class="delta-up">▲ ${(r.mom*100).toFixed(1)}%</span></td>
+    <td>${sentimentBadge(r.sentiment)}</td>
+  </tr>`).join('');
+}
+
+function populateCampaigns(){
+  const tb = document.getElementById('comms-campaign-tbody');
+  tb.innerHTML = campaigns.map(c=>`<tr>
+    <td>${c.date}</td>
+    <td style="min-width:220px">${c.name}</td>
+    <td><span class="badge b-gray">${c.market}</span></td>
+    <td class="num">${c.sent.toLocaleString()}</td>
+    <td class="num">${c.delivered.toLocaleString()}</td>
+    <td class="num">${c.opens.toLocaleString()}</td>
+    <td class="num">${c.clicks.toLocaleString()}</td>
+    <td class="num">${c.signups.toLocaleString()}</td>
+    <td class="num">${(c.openp*100).toFixed(1)}%</td>
+    <td class="num">${(c.clickp*100).toFixed(1)}%</td>
+    <td class="num">${c.opens>0?(c.clicks/c.opens*100).toFixed(1)+'%':'—'}</td>
+  </tr>`).join('');
+}
+
+function populateContentMobile(){
+  const tb = document.getElementById('content-mobile-tbody');
+  tb.innerHTML = contentMobile.map(r=>`<tr>
+    <td style="font-weight:600;color:#0B2545">${r.rank}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.title}</td>
+    <td class="num">${r.hrs}</td>
+    <td class="num">${r.sess}</td>
+    <td class="num">${(r.pct*100).toFixed(1)}%</td>
+  </tr>`).join('');
+}
+
+function populateContentCTV(){
+  const tb = document.getElementById('content-ctv-tbody');
+  tb.innerHTML = contentCTV.map(r=>`<tr>
+    <td style="font-weight:600;color:#0B2545">${r.rank}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.title}</td>
+    <td class="num">${r.hrs}</td>
+    <td class="num">${r.sess}</td>
+    <td class="num">${(r.pct*100).toFixed(1)}%</td>
+  </tr>`).join('');
+}
+
+function populateRevenue(){
+  const tb = document.getElementById('revenue-tbody');
+  tb.innerHTML = revenueData.map(r=>`<tr>
+    <td>${r.month}</td>
+    <td class="num">${r.users.toLocaleString()}</td>
+    <td class="num">${r.paying.toLocaleString()}</td>
+    <td class="num">$${r.rev.toLocaleString()}</td>
+    <td class="num">$${r.cost.toLocaleString()}</td>
+    <td class="num">$${r.profit.toLocaleString()}</td>
+    <td class="num">${(r.margin*100).toFixed(1)}%</td>
+    <td>${typeBadge(r.type)}</td>
+  </tr>`).join('');
+}
+
+function populateCPEBox(){
+  const tb = document.getElementById('cpebox-tbody');
+  tb.innerHTML = cpeboxData.map(r=>`<tr>
+    <td>${r.metric}</td>
+    ${r.vals.map(v=>`<td class="num">${v===0?'—':fmtVal(v,r.fmt)}</td>`).join('')}
+    <td class="num">${fmtVal(r.ytd,r.fmt)}</td>
+    <td class="num">${fmtVal(r.target,r.fmt)}</td>
+  </tr>`).join('');
+}
+
+// ══════════════════════════════════════════════
+//  CHARTS
+// ══════════════════════════════════════════════
+const chartInstances = {};
+function destroyChart(id){ if(chartInstances[id]){ chartInstances[id].destroy(); delete chartInstances[id]; } }
+
+function makeChart(id, config){
+  destroyChart(id);
+  const ctx = document.getElementById(id);
+  if(!ctx) return;
+  chartInstances[id] = new Chart(ctx, config);
+}
+
+const lineDefaults = {
+  tension:0.35,
+  pointRadius:4,
+  pointHoverRadius:6,
+  borderWidth:2,
+  fill:false,
+};
+
+function initExecMAU(){
+  makeChart('exec-mau-chart',{
+    type:'line',
+    data:{
+      labels:MONTHS,
+      datasets:[{
+        label:'MAU',
+        data:[660,795,975,1215,1525,1705],
+        borderColor:'#00C2E0',
+        backgroundColor:'rgba(0,194,224,0.1)',
+        fill:true,
+        ...lineDefaults
+      },{
+        label:'Target',
+        data:[1500,1500,1500,1500,1500,1500],
+        borderColor:'#EF4444',
+        borderDash:[5,5],
+        borderWidth:1.5,
+        pointRadius:0,
+        fill:false,
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},scales:{y:{beginAtZero:false,grid:{color:'#f0f4f8'}}}}
+  });
+}
+
+function initProdOpsChart(){
+  makeChart('prodops-chart',{
+    type:'line',
+    data:{
+      labels:MONTHS,
+      datasets:[
+        {label:'MAU',data:[660,795,975,1215,1525,1705],borderColor:'#00C2E0',...lineDefaults},
+        {label:'Marketing Conv.',data:[1380,1912,2248,2612,3015,1488],borderColor:'#0B2545',...lineDefaults},
+        {label:'App Rating (×100)',data:[281,301,318,334,349,358],borderColor:'#F59E0B',...lineDefaults},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},scales:{y:{beginAtZero:false,grid:{color:'#f0f4f8'}}}}
+  });
+}
+
+function initCommRGU(){
+  makeChart('comm-rgu-chart',{
+    type:'line',
+    data:{
+      labels:MONTHS,
+      datasets:[
+        {label:'Total RGUs',data:[454,795,1125,1498,1920,2185],borderColor:'#00C2E0',...lineDefaults,yAxisID:'y'},
+        {label:'CapEx Avoided (÷1k)',data:[38.5,72.8,109.4,149.7,195.8,226.4],borderColor:'#16A34A',...lineDefaults,yAxisID:'y1'},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+      scales:{
+        y:{beginAtZero:true,grid:{color:'#f0f4f8'},title:{display:true,text:'RGUs',font:{size:10}}},
+        y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'CapEx ÷1k',font:{size:10}}}
+      }
+    }
+  });
+}
+
+function initCommSwap(){
+  makeChart('comm-swap-chart',{
+    type:'doughnut',
+    data:{
+      labels:['AVS','HubTV','Other'],
+      datasets:[{data:[393,221,14],backgroundColor:['#00C2E0','#0B2545','#CBD5E0'],borderWidth:2,borderColor:'#fff'}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}
+  });
+}
+
+function initUserMktChart(){
+  const top5 = ['Jamaica','Trinidad','Barbados','Cayman Islands','Saint Lucia'];
+  const aprilVals = marketData.filter(m=>top5.includes(m.market)).map(m=>m.vals[5]);
+  const colors = ['#00C2E0','#0B2545','#16A34A','#F59E0B','#8B5CF6'];
+  makeChart('user-mkt-chart',{
+    type:'bar',
+    data:{
+      labels:top5,
+      datasets:[{label:'Apr-26 MTD MAU',data:aprilVals,backgroundColor:colors,borderRadius:5}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#f0f4f8'}}}}
+  });
+}
+
+function initUserPlatChart(){
+  makeChart('user-plat-chart',{
+    type:'doughnut',
+    data:{
+      labels:platformData.map(p=>p.platform),
+      datasets:[{data:platformData.map(p=>p.ytd),backgroundColor:['#00C2E0','#0B2545','#16A34A','#F59E0B','#8B5CF6'],borderWidth:2,borderColor:'#fff'}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}
+  });
+}
+
+function initCareNPSChart(){
+  makeChart('care-nps-chart',{
+    type:'line',
+    data:{
+      labels:MONTHS,
+      datasets:npsTrend.map((m,i)=>({
+        label:m.market,
+        data:m.vals,
+        borderColor:PALETTE[i],
+        ...lineDefaults
+      }))
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},scales:{y:{beginAtZero:false,grid:{color:'#f0f4f8'}}}}
+  });
+}
+
+function initCareCallsChart(){
+  makeChart('care-calls-chart',{
+    type:'bar',
+    data:{
+      labels:MONTHS,
+      datasets:[{label:'Total Calls',data:[412,387,352,321,298,142],backgroundColor:'rgba(0,194,224,0.7)',borderRadius:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#f0f4f8'}}}}
+  });
+}
+
+function initCommsRateChart(){
+  makeChart('comms-rate-chart',{
+    type:'line',
+    data:{
+      labels:MONTHS,
+      datasets:[
+        {label:'Open Rate',data:[24.1,15.7,17.1,18.9,20.7,21.8],borderColor:'#00C2E0',...lineDefaults},
+        {label:'Click Rate',data:[3.6,1.7,2.0,2.3,2.5,2.7],borderColor:'#0B2545',...lineDefaults},
+        {label:'CTOR',data:[15.0,11.1,11.8,12.1,12.2,12.1],borderColor:'#F59E0B',...lineDefaults},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},scales:{y:{beginAtZero:true,grid:{color:'#f0f4f8'},title:{display:true,text:'%',font:{size:10}}}}}
+  });
+}
+
+function initContentHoursChart(){
+  makeChart('content-hours-chart',{
+    type:'bar',
+    data:{
+      labels:MONTHS,
+      datasets:[
+        {label:'Mobile (hrs)',data:[207.3,480.2,612.5,745.1,892.4,498.2],backgroundColor:'rgba(0,194,224,0.8)',borderRadius:4,stack:'s'},
+        {label:'CTV/TV (hrs)',data:[358.2,528.3,718.4,864.6,1048.2,582.4],backgroundColor:'rgba(11,37,69,0.8)',borderRadius:4,stack:'s'},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},scales:{y:{beginAtZero:true,grid:{color:'#f0f4f8'},stacked:true},x:{stacked:true}}}
+  });
+}
+
+function initRevenueChart(){
+  const cumRev  = revenueData.map(r=>r.rev);
+  const cumProfit = revenueData.map(r=>r.profit);
+  makeChart('revenue-chart',{
+    type:'bar',
+    data:{
+      labels:revenueData.map(r=>r.month),
+      datasets:[
+        {label:'Revenue (US$)',data:cumRev,backgroundColor:'rgba(0,194,224,0.75)',borderRadius:4,order:2},
+        {label:'Gross Profit',data:cumProfit,backgroundColor:'rgba(22,163,74,0.7)',borderRadius:4,order:3},
+        {label:'Margin %',data:revenueData.map(r=>+(r.margin*100).toFixed(1)),type:'line',borderColor:'#F59E0B',yAxisID:'y1',borderWidth:2,...lineDefaults,fill:false,order:1},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+      scales:{
+        y:{beginAtZero:true,grid:{color:'#f0f4f8'},title:{display:true,text:'US$',font:{size:10}}},
+        y1:{position:'right',grid:{drawOnChartArea:false},min:60,max:90,title:{display:true,text:'Margin %',font:{size:10}}}
+      }
+    }
+  });
+}
+
+function initCPEBoxChart(){
+  makeChart('cpebox-chart',{
+    type:'bar',
+    data:{
+      labels:['Jan-26','Feb-26','Mar-26','Apr-26 MTD'],
+      datasets:[
+        {label:'Ordered',data:[48,112,182,98],backgroundColor:'rgba(0,194,224,0.8)',borderRadius:4},
+        {label:'Activated',data:[38,101,164,86],backgroundColor:'rgba(11,37,69,0.8)',borderRadius:4},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},scales:{y:{beginAtZero:true,grid:{color:'#f0f4f8'}}}}
+  });
+}
+
+function initWebSourceChart(){
+  makeChart('web-source-chart',{
+    type:'doughnut',
+    data:{
+      labels:['Organic Search','Referral','Direct','Paid Search','Email','Social','Other'],
+      datasets:[{
+        data:[22800,9860,8420,6140,4980,3520,1480],
+        backgroundColor:['#00C2E0','#0B2545','#16A34A','#F59E0B','#8B5CF6','#EF4444','#CBD5E0'],
+        borderWidth:2,borderColor:'#fff'
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}
+  });
+}
+
+// ══════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════
+const viewMap = {
+  exec:       {id:'v-exec',      title:'Executive Dashboard',    init:()=>{initExecMAU();}},
+  prodops:    {id:'v-prodops',   title:'Product & Ops KPIs',     init:()=>{initProdOpsChart();}},
+  commercial: {id:'v-commercial',title:'Commercial KPIs',        init:()=>{initCommRGU();initCommSwap();}},
+  users:      {id:'v-users',     title:'User Metrics',           init:()=>{initUserMktChart();initUserPlatChart();}},
+  care:       {id:'v-care',      title:'Customer Care',          init:()=>{initCareNPSChart();initCareCallsChart();}},
+  comms:      {id:'v-comms',     title:'Communications',         init:()=>{initCommsRateChart();}},
+  content:    {id:'v-content',   title:'Content & Viewership',   init:()=>{initContentHoursChart();}},
+  revenue:    {id:'v-revenue',   title:'Revenue Forecast',       init:()=>{initRevenueChart();}},
+  cpebox:     {id:'v-cpebox',    title:'Entertainment Box',      init:()=>{initCPEBoxChart();}},
+  web:        {id:'v-web',       title:'Website Analytics',      init:()=>{initWebSourceChart();}},
+};
+
+let currentView = 'exec';
+let chartsInitialized = {};
+
+function nav(key){
+  // Update sidebar
+  document.querySelectorAll('.nav-item').forEach(el=>{
+    el.classList.toggle('active', el.getAttribute('onclick')===`nav('${key}')`);
+  });
+  // Switch views
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  const cfg = viewMap[key];
+  document.getElementById(cfg.id).classList.add('active');
+  document.getElementById('page-title').textContent = cfg.title;
+  currentView = key;
+  // Init charts only once per view
+  if(!chartsInitialized[key]){
+    chartsInitialized[key] = true;
+    setTimeout(()=>cfg.init(), 50);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  populateExecNPS();
+  populateProdOps();
+  populateCommercial();
+  populateUserMarket();
+  populateUserPlatform();
+  populateCareNPS();
+  populateCampaigns();
+  populateContentMobile();
+  populateContentCTV();
+  populateRevenue();
+  populateCPEBox();
+  // init first view charts
+  chartsInitialized['exec'] = true;
+  setTimeout(()=>initExecMAU(), 100);
+});
+</script>
+</body>
+</html>
